@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Valenero CRM — Local</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <aside class="sidebar">
+      <h1>Valenero CRM</h1>
+      <p class="muted">Local-only mode</p>
+
+      <label for="bizSelect">Business</label>
+      <select id="bizSelect"></select>
+
+      <nav id="nav" class="nav"></nav>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <h2 id="pageTitle">Overview</h2>
+        <div class="topbar-actions">
+          <button id="exportBtn">Export JSON</button>
+          <label class="file-label" for="importInput">Import JSON</label>
+          <input id="importInput" type="file" accept="application/json" />
+        </div>
+      </header>
+
+      <section id="page"></section>
+    </main>
+  </div>
+
+  <template id="overviewTpl">
+    <div class="cards">
+      <article class="card"><h3>Leads</h3><p id="kpiLeads">0</p></article>
+      <article class="card"><h3>Deals</h3><p id="kpiDeals">0</p></article>
+      <article class="card"><h3>Tasks</h3><p id="kpiTasks">0</p></article>
+    </div>
+  </template>
+
+  <template id="leadsTpl">
+    <div class="panel">
+      <h3>Add Lead</h3>
+      <form id="leadForm" class="form-inline">
+        <input name="name" placeholder="Lead name" required />
+        <input name="company" placeholder="Company" required />
+        <input name="phone" placeholder="Phone" />
+        <button type="submit">Add</button>
+      </form>
+    </div>
+    <div class="panel">
+      <h3>Leads</h3>
+      <table>
+        <thead><tr><th>Name</th><th>Company</th><th>Phone</th><th>Stage</th></tr></thead>
+        <tbody id="leadsRows"></tbody>
+      </table>
+    </div>
+  </template>
+
+  <template id="pipelineTpl">
+    <div class="pipeline" id="pipelineCols"></div>
+  </template>
+
+  <template id="settingsTpl">
+    <div class="panel">
+      <h3>Local-only Settings</h3>
+      <p>This build stores all data in localStorage only.</p>
+      <button id="resetBtn" class="danger">Reset to Seed Data</button>
+    </div>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
