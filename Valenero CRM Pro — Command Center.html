@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Valenero CRM Pro — Command Center (Local)</title>
+  <style>
+    :root { --bg:#0b1020; --panel:#121a30; --panel2:#19223f; --text:#eef2ff; --muted:#9fb0d8; --accent:#50b4ff; --good:#28c76f; --warn:#ff9f43; --bad:#ea5455; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter,system-ui,Segoe UI,Arial,sans-serif; background:var(--bg); color:var(--text); }
+    .app { display:grid; grid-template-columns:260px 1fr; min-height:100vh; }
+    aside { background:var(--panel); border-right:1px solid #2a355e; padding:16px; position:sticky; top:0; height:100vh; overflow:auto; }
+    .brand { font-weight:700; margin-bottom:8px; }
+    .muted { color:var(--muted); font-size:12px; }
+    .business-selector, .search, input, select, textarea, button { border-radius:8px; border:1px solid #2a355e; background:#0f1730; color:var(--text); padding:8px 10px; }
+    nav { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+    nav button { text-align:left; background:transparent; border:1px solid #233056; }
+    nav button.active { background:var(--panel2); border-color:var(--accent); }
+    main { padding:14px; }
+    .topbar { display:flex; gap:8px; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    .card { background:var(--panel); border:1px solid #2a355e; border-radius:10px; padding:12px; margin-bottom:10px; }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th,td { border-bottom:1px solid #2a355e; padding:8px; text-align:left; }
+    .kanban { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+    .col { background:#0f1730; border:1px solid #2a355e; border-radius:10px; padding:8px; }
+    .chip { display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid #375092; margin:2px; cursor:pointer; }
+    .hidden { display:none !important; }
+    .overlay { position:fixed; inset:0; background:rgba(3,8,19,.87); z-index:80; display:none; }
+    .overlay.open { display:block; }
+    .overlay .box { width:min(920px,95vw); margin:20px auto; background:var(--panel); border:1px solid #2a355e; border-radius:14px; padding:14px; max-height:92vh; overflow:auto; }
+    .pill { padding:4px 8px; border-radius:6px; font-size:12px; border:1px solid #2a355e; }
+    .success { color:var(--good) }
+    .danger { color:var(--bad) }
+    .warning { color:var(--warn) }
+    .toast { position:fixed; bottom:14px; right:14px; padding:10px 12px; border-radius:8px; background:#112145; border:1px solid #35539f; z-index:99; }
+    .hr { border-top:1px solid #2a355e; margin:10px 0; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand">Valenero CRM Pro</div>
+      <div class="muted">Local-Only Command Center</div>
+      <div class="hr"></div>
+      <label class="muted">Business</label>
+      <select id="businessSelector" class="business-selector"></select>
+      <div class="hr"></div>
+      <nav id="nav"></nav>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div class="row">
+          <input id="globalSearch" class="search" placeholder="Search leads, deals, prospects..." />
+          <span id="notifCount" class="pill">0 notifications</span>
+        </div>
+        <div class="row">
+          <button id="saveNowBtn">Save</button>
+          <button id="exportBtn">Export JSON Backup</button>
+          <input id="importJsonInput" type="file" accept="application/json" class="hidden" />
+          <button id="importBtn">Import JSON Backup</button>
+        </div>
+      </div>
+      <div id="page"></div>
+    </main>
+  </div>
+
+  <div id="callOverlay" class="overlay">
+    <div class="box">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h2 style="margin:0">Power Call Overlay</h2>
+        <button onclick="closeCallOverlay()">Close</button>
+      </div>
+      <div class="muted" id="callLeadMeta"></div>
+      <div class="grid-3" style="margin-top:8px">
+        <div class="card"><b>Timer</b><div id="callTimer">00:00</div></div>
+        <div class="card"><b>Receptionist</b><input id="receptionistField" placeholder="Name"/></div>
+        <div class="card"><b>DM Name</b><input id="dmField" placeholder="Decision maker"/></div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><b>Email</b><input id="callEmailField" placeholder="lead@domain.com"/></div>
+        <div class="card"><b>Objection</b><input id="objectionField" placeholder="Type objection..."/></div>
+      </div>
+      <div class="card">
+        <label><input type="checkbox" id="followUpToggle" /> Requires follow up</label>
+        <input type="date" id="followUpDate" class="hidden" />
+      </div>
+      <div class="card"><b>Notes</b><textarea id="callNotes" rows="4" style="width:100%"></textarea></div>
+      <div class="card">
+        <b>Suggested outcomes</b>
+        <div id="outcomes"></div>
+      </div>
+      <div class="card">
+        <b>Objection chips</b>
+        <div id="objectionChips"></div>
+        <div id="objectionDetails" class="muted" style="margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'valenero_crm_local_v1';
+    const PAGES = [
+      'overview','leads','pipeline','deals','prospects','dealCoach','dialer','objections','scripts','callbacks','tasks','calendar',
+      'bookings','aiReceptionist','reports','onboarding','billing','analytics','roi','emailTemplates','imports','settings'
+    ];
+    const stages = ['New','Contacted','Qualified','Won'];
+
+    const defaultState = {
+      version: 1,
+      currentPage: 'overview',
+      activeBusinessId: 'biz-1',
+      businesses: [{id:'biz-1',name:'Valenero HQ'},{id:'biz-2',name:'Growth Lab'}],
+      notifications: [],
+      leads: [
+        {id:'l1',bizId:'biz-1',name:'Apex Dental',phone:'555-1100',email:'owner@apex.com',stage:'New',persona:'Skeptical Owner',notes:'',lastOutcome:'',followUpDate:'',source:'CSV'},
+        {id:'l2',bizId:'biz-1',name:'Northside Wellness',phone:'555-2200',email:'hello@northside.com',stage:'Qualified',persona:'Busy Manager',notes:'Warm lead',lastOutcome:'Booked',followUpDate:'',source:'Manual'}
+      ],
+      deals: [{id:'d1',bizId:'biz-1',name:'Apex Expansion',value:4200,status:'Open'}],
+      prospects: [{id:'p1',bizId:'biz-1',name:'Blue Sky Therapy',fit:'High'}],
+      sessions: [],
+      objections: [
+        {id:'o1',persona:'Skeptical Owner',trigger:'Too expensive',rebuttal:'ROI exceeds monthly cost in 30 days',nextLine:'Would cutting no-shows by 40% justify it?',coaching:'Use social proof',wins:2,losses:1},
+        {id:'o2',persona:'Busy Manager',trigger:'No time',rebuttal:'Implementation takes under 30 minutes',nextLine:'Can I show the setup checklist?',coaching:'Mirror urgency',wins:4,losses:2}
+      ],
+      scripts:[{id:'s1',persona:'Skeptical Owner',title:'Discovery Open',body:'Hi {{name}}, quick question about missed-call revenue recovery...'}],
+      callbacks: [],
+      tasks: [{id:'t1',bizId:'biz-1',title:'Review onboarding checklist',due:new Date().toISOString().slice(0,10),done:false}],
+      bookings: [{id:'b1',bizId:'biz-1',client:'Apex Dental',date:new Date().toISOString().slice(0,10),status:'Confirmed'}],
+      reports:[{id:'r1',bizId:'biz-1',title:'Weekly Ops',body:'Calls up 22%, booked demos up 14%.'}],
+      onboarding:{checklist:['Connect inbox','Set call scripts','Configure reminders'],done:[]},
+      billing:{invoices:[{id:'inv1',bizId:'biz-1',client:'Apex Dental',amount:4200,status:'Paid'}]},
+      analytics:{dailyCalls:12,conversionRate:0.34,bestTime:'10:00 - 12:00'},
+      emailTemplates:[{id:'e1',name:'Post-call follow-up',subject:'Quick recap',body:'Thanks for your time today...'}]
+    };
+
+    let state = loadState();
+    let callState = { leadId:null, startedAt:null, timer:null, elapsed:0 };
+
+    function loadState(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return structuredClone(defaultState);
+        const parsed = JSON.parse(raw);
+        return migrateState(parsed);
+      }catch{ return structuredClone(defaultState); }
+    }
+    function migrateState(s){
+      const next = {...structuredClone(defaultState), ...s};
+      next.objections = Array.isArray(next.objections) ? next.objections : [];
+      next.scripts = Array.isArray(next.scripts) ? next.scripts : [];
+      next.analytics = {...defaultState.analytics, ...(next.analytics||{})};
+      return next;
+    }
+    function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); notify('State saved locally'); }
+    function notify(msg){
+      state.notifications.push({id:crypto.randomUUID(),msg,ts:Date.now()});
+      document.getElementById('notifCount').textContent = `${state.notifications.length} notifications`;
+      const t = document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),1400);
+    }
+
+    function currentBiz(){ return state.activeBusinessId; }
+    function byBiz(arr){ return arr.filter(x=>!x.bizId || x.bizId===currentBiz()); }
+
+    function init(){
+      document.getElementById('businessSelector').innerHTML = state.businesses.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+      document.getElementById('businessSelector').value = state.activeBusinessId;
+      document.getElementById('businessSelector').onchange = e=>{ state.activeBusinessId=e.target.value; render(); saveState(); };
+      document.getElementById('saveNowBtn').onclick = saveState;
+      document.getElementById('exportBtn').onclick = exportBackup;
+      document.getElementById('importBtn').onclick = ()=>document.getElementById('importJsonInput').click();
+      document.getElementById('importJsonInput').onchange = importBackup;
+      document.getElementById('globalSearch').oninput = ()=>render();
+      document.getElementById('followUpToggle').onchange = (e)=>document.getElementById('followUpDate').classList.toggle('hidden', !e.target.checked);
+
+      const nav = document.getElementById('nav');
+      nav.innerHTML = PAGES.map(p=>`<button data-page="${p}">${p}</button>`).join('');
+      nav.querySelectorAll('button').forEach(b=>b.onclick = ()=>{ state.currentPage=b.dataset.page; render(); });
+      render();
+    }
+
+    function render(){
+      document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active', b.dataset.page===state.currentPage));
+      document.getElementById('notifCount').textContent = `${state.notifications.length} notifications`;
+      const q = document.getElementById('globalSearch').value?.toLowerCase().trim();
+      const leads = byBiz(state.leads).filter(l=>!q || JSON.stringify(l).toLowerCase().includes(q));
+      const page = document.getElementById('page');
+      const renderer = {
+        overview:()=>`<div class="grid-3">${metric('Leads',leads.length)}${metric('Open Deals',byBiz(state.deals).length)}${metric('Bookings',byBiz(state.bookings).length)}</div>${analyticsCard()}`,
+        leads:()=>leadsPage(leads),
+        pipeline:()=>pipelinePage(leads),
+        deals:()=>tableCard('Deals', byBiz(state.deals), ['name','value','status']),
+        prospects:()=>tableCard('Prospects', byBiz(state.prospects), ['name','fit']),
+        dealCoach:()=>`<div class="card"><h3>Deal Coach</h3><p class="muted">Score: ${Math.round(state.analytics.conversionRate*100)}%. Coaching: focus on "No time" rebuttal with Busy Manager persona.</p></div>`,
+        dialer:()=>dialerPage(leads),
+        objections:()=>objectionsPage(),
+        scripts:()=>scriptsPage(),
+        callbacks:()=>simpleListPage('Callbacks', state.callbacks, ['title','date']),
+        tasks:()=>tasksPage(),
+        calendar:()=>calendarPage(),
+        bookings:()=>tableCard('Bookings', byBiz(state.bookings), ['client','date','status']),
+        aiReceptionist:()=>`<div class="card"><h3>AI Receptionist</h3><p>Hours, routing, fallback SMS, and escalation rules are configured locally.</p></div>`,
+        reports:()=>tableCard('Client Reports', byBiz(state.reports), ['title','body']),
+        onboarding:()=>onboardingPage(),
+        billing:()=>tableCard('Billing & Invoices', byBiz(state.billing.invoices), ['client','amount','status']),
+        analytics:()=>analyticsCard(true),
+        roi:()=>roiPage(),
+        emailTemplates:()=>emailPage(),
+        imports:()=>importsPage(),
+        settings:()=>settingsPage()
+      }[state.currentPage] || (()=>'<div class="card">Unknown page</div>');
+      page.innerHTML = renderer();
+      wireDynamicHandlers(leads);
+      saveSilent();
+    }
+    function saveSilent(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+    function metric(title,val){ return `<div class="card"><div class="muted">${title}</div><div style="font-size:28px">${val}</div></div>`; }
+    function analyticsCard(large){
+      return `<div class="card"><h3>Analytics ${large?'(Charts)':''}</h3>
+      <p>Daily Calls: <b>${state.analytics.dailyCalls}</b></p>
+      <p>Conversion: <b>${Math.round(state.analytics.conversionRate*100)}%</b></p>
+      <p>Best Time to Call: <b>${state.analytics.bestTime}</b></p>
+      <div style="display:flex;gap:6px;align-items:flex-end;height:120px">${[6,9,12,8,14,10,13].map(v=>`<div style="width:20px;height:${v*7}px;background:#4ab3ff"></div>`).join('')}</div>
+      </div>`;
+    }
+    function tableCard(title,arr,keys){
+      return `<div class="card"><h3>${title}</h3><table><thead><tr>${keys.map(k=>`<th>${k}</th>`).join('')}</tr></thead><tbody>${arr.map(r=>`<tr>${keys.map(k=>`<td>${r[k]??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    }
+    function leadsPage(leads){
+      const pageSize=10; const pageItems=leads.slice(0,pageSize);
+      return `<div class="card"><h3>Leads</h3><p class="muted">Filters + pagination + lead panel</p>
+      <table><thead><tr><th>Name</th><th>Phone</th><th>Stage</th><th>Outcome</th><th></th></tr></thead><tbody>
+      ${pageItems.map(l=>`<tr><td>${l.name}</td><td>${l.phone}</td><td><select data-stage-id="${l.id}">${stages.map(s=>`<option ${s===l.stage?'selected':''}>${s}</option>`).join('')}</select></td><td>${l.lastOutcome||'-'}</td><td><button data-open-lead="${l.id}">Panel</button></td></tr>`).join('')}
+      </tbody></table></div><div id="leadPanel"></div>`;
+    }
+    function pipelinePage(leads){
+      return `<div class="kanban">${stages.map(s=>`<div class="col"><h4>${s}</h4>${leads.filter(l=>l.stage===s).map(l=>`<div class="card">${l.name}<div class="row">${stages.filter(x=>x!==s).map(nx=>`<button data-move-id="${l.id}" data-move-stage="${nx}">→ ${nx}</button>`).join('')}</div></div>`).join('')}</div>`).join('')}</div>`;
+    }
+    function dialerPage(leads){
+      const lead=leads[0];
+      return `<div class="card"><h3>Power Dialer</h3>${lead?`<p>Current Lead: <b>${lead.name}</b></p><button data-call="${lead.id}">Start Call Overlay</button>`:'No leads'}</div>`;
+    }
+    function objectionsPage(){
+      return `<div class="card"><h3>Objections</h3><div>${state.objections.map(o=>`<span class="chip" data-objid="${o.id}">${o.persona}: ${o.trigger}</span>`).join('')}</div><div id="objView" class="muted" style="margin-top:8px"></div></div>`;
+    }
+    function scriptsPage(){
+      return `<div class="card"><h3>Scripts</h3>${state.scripts.map(s=>`<div class="card"><b>${s.title}</b><p>${s.body}</p><small class="muted">Persona: ${s.persona}</small></div>`).join('')}</div>`;
+    }
+    function simpleListPage(title, arr, keys){
+      return `<div class="card"><h3>${title}</h3><table><thead><tr>${keys.map(k=>`<th>${k}</th>`).join('')}</tr></thead><tbody>${arr.map(x=>`<tr>${keys.map(k=>`<td>${x[k]||''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    }
+    function tasksPage(){
+      const list=byBiz(state.tasks);
+      return `<div class="card"><h3>Tasks</h3><div class="row"><input id="newTaskTitle" placeholder="Task"/><input id="newTaskDate" type="date"/><button id="addTaskBtn">Add</button></div><table><thead><tr><th>Done</th><th>Title</th><th>Due</th><th></th></tr></thead><tbody>${list.map(t=>`<tr><td><input type="checkbox" data-task-done="${t.id}" ${t.done?'checked':''}/></td><td>${t.title}</td><td>${t.due||''}</td><td><button data-task-del="${t.id}">Delete</button></td></tr>`).join('')}</tbody></table></div>`;
+    }
+    function calendarPage(){
+      return `<div class="card"><h3>Calendar</h3><p>Callbacks: ${state.callbacks.length}</p><p>Tasks due today: ${state.tasks.filter(t=>t.due===new Date().toISOString().slice(0,10)).length}</p><p>Bookings today: ${byBiz(state.bookings).filter(b=>b.date===new Date().toISOString().slice(0,10)).length}</p></div>`;
+    }
+    function onboardingPage(){
+      return `<div class="card"><h3>Onboarding</h3>${state.onboarding.checklist.map(item=>`<label><input type="checkbox" data-obdone="${item}" ${state.onboarding.done.includes(item)?'checked':''}/> ${item}</label><br/>`).join('')}</div>`;
+    }
+    function roiPage(){
+      const mrr=byBiz(state.deals).reduce((a,d)=>a+Number(d.value||0),0);
+      const roi=Math.round((mrr*0.25));
+      return `<div class="card"><h3>ROI Calculator</h3><p>Deal volume proxy: $${mrr}</p><p>Estimated recovered value: <b>$${roi}</b></p></div>`;
+    }
+    function emailPage(){
+      return `<div class="card"><h3>Email Templates</h3>${state.emailTemplates.map(t=>`<div><b>${t.name}</b> — ${t.subject}</div>`).join('')}</div>`;
+    }
+    function importsPage(){
+      return `<div class="card"><h3>Imports</h3><div class="row"><input id="csvInput" type="file" accept=".csv"/><button id="csvBtn">Import CSV Leads</button></div><div class="row"><input id="xlsxInput" type="file" accept=".xlsx,.xls"/><button id="xlsxBtn">Import XLSX Leads</button></div><div class="row"><input id="objScriptInput" type="file" accept="application/json"/><button id="objScriptBtn">Import Objections/Scripts JSON</button></div></div>`;
+    }
+    function settingsPage(){
+      return `<div class="card"><h3>Settings (Local)</h3><p>No Supabase/auth/sync controls in local mode.</p><button id="clearStateBtn">Clear Local State</button><div class="hr"></div><p>Backup/Restore available in top bar.</p></div>`;
+    }
+
+    function wireDynamicHandlers(leads){
+      document.querySelectorAll('[data-open-lead]').forEach(b=>b.onclick=()=>openLeadPanel(b.dataset.openLead));
+      document.querySelectorAll('[data-stage-id]').forEach(s=>s.onchange=()=>{ const l=state.leads.find(x=>x.id===s.dataset.stageId); l.stage=s.value; notify('Lead stage updated'); render(); });
+      document.querySelectorAll('[data-move-id]').forEach(b=>b.onclick=()=>{ const l=state.leads.find(x=>x.id===b.dataset.moveId); l.stage=b.dataset.moveStage; notify('Pipeline stage moved'); render(); });
+      document.querySelectorAll('[data-call]').forEach(b=>b.onclick=()=>openCallOverlay(b.dataset.call));
+      document.querySelectorAll('[data-objid]').forEach(b=>b.onclick=()=>{ const o=state.objections.find(x=>x.id===b.dataset.objid); document.getElementById('objView').innerHTML=`<b>${o.trigger}</b><br/>Rebuttal: ${o.rebuttal}<br/>Next line: ${o.nextLine}<br/>Coaching: ${o.coaching}<br/>Wins/Losses: ${o.wins}/${o.losses}`; });
+      document.querySelectorAll('[data-task-done]').forEach(c=>c.onchange=()=>{ const t=state.tasks.find(x=>x.id===c.dataset.taskDone); t.done=c.checked; render(); });
+      document.querySelectorAll('[data-task-del]').forEach(b=>b.onclick=()=>{ state.tasks=state.tasks.filter(t=>t.id!==b.dataset.taskDel); render(); });
+      const at=document.getElementById('addTaskBtn'); if(at) at.onclick=()=>{ const title=document.getElementById('newTaskTitle').value.trim(); if(!title) return; state.tasks.push({id:crypto.randomUUID(),bizId:currentBiz(),title,due:document.getElementById('newTaskDate').value,done:false}); render(); };
+      document.querySelectorAll('[data-obdone]').forEach(c=>c.onchange=()=>{ const it=c.dataset.obdone; if(c.checked) state.onboarding.done.push(it); else state.onboarding.done=state.onboarding.done.filter(x=>x!==it); render(); });
+      const cs=document.getElementById('clearStateBtn'); if(cs) cs.onclick=()=>{ if(confirm('Clear all local CRM data?')){ localStorage.removeItem(STORAGE_KEY); state=structuredClone(defaultState); render(); notify('Local state reset'); } };
+      const csvBtn=document.getElementById('csvBtn'); if(csvBtn) csvBtn.onclick=importCSV;
+      const xlsxBtn=document.getElementById('xlsxBtn'); if(xlsxBtn) xlsxBtn.onclick=importXLSX;
+      const objBtn=document.getElementById('objScriptBtn'); if(objBtn) objBtn.onclick=importObjScripts;
+    }
+
+    function openLeadPanel(id){
+      const l=state.leads.find(x=>x.id===id); if(!l) return;
+      document.getElementById('leadPanel').innerHTML = `<div class="card"><h3>Lead Panel: ${l.name}</h3><input id="lpEmail" value="${l.email||''}"/><textarea id="lpNotes" rows="3" style="width:100%">${l.notes||''}</textarea><button id="lpSave">Save</button></div>`;
+      document.getElementById('lpSave').onclick=()=>{ l.email=document.getElementById('lpEmail').value; l.notes=document.getElementById('lpNotes').value; notify('Lead saved locally'); render(); };
+    }
+
+    function openCallOverlay(leadId){
+      callState = { leadId, startedAt:Date.now(), timer:null, elapsed:0 };
+      const l = state.leads.find(x=>x.id===leadId); if(!l) return;
+      document.getElementById('callLeadMeta').textContent = `${l.name} · ${l.phone}`;
+      document.getElementById('callNotes').value = l.notes || '';
+      document.getElementById('callEmailField').value = l.email || '';
+      document.getElementById('followUpToggle').checked = Boolean(l.followUpDate);
+      document.getElementById('followUpDate').value = l.followUpDate || '';
+      document.getElementById('followUpDate').classList.toggle('hidden', !l.followUpDate);
+      document.getElementById('outcomes').innerHTML = ['No Answer','Interested','Booked','Not Interested','Callback'].map(o=>`<button data-outcome="${o}">${o}</button>`).join(' ');
+      document.querySelectorAll('[data-outcome]').forEach(b=>b.onclick=()=>logOutcome(b.dataset.outcome));
+      document.getElementById('objectionChips').innerHTML = state.objections.map(o=>`<span class="chip" data-objchip="${o.id}">${o.trigger}</span>`).join('');
+      document.querySelectorAll('[data-objchip]').forEach(c=>c.onclick=()=>{ const o=state.objections.find(x=>x.id===c.dataset.objchip); document.getElementById('objectionDetails').innerHTML=`${o.rebuttal} · ${o.nextLine} · ${o.coaching}`; document.getElementById('objectionField').value=o.trigger; });
+      document.getElementById('callOverlay').classList.add('open');
+      callState.timer = setInterval(()=>{ callState.elapsed = Math.floor((Date.now()-callState.startedAt)/1000); document.getElementById('callTimer').textContent = `${String(Math.floor(callState.elapsed/60)).padStart(2,'0')}:${String(callState.elapsed%60).padStart(2,'0')}`; },1000);
+    }
+    function closeCallOverlay(){
+      if(callState.timer) clearInterval(callState.timer);
+      document.getElementById('callOverlay').classList.remove('open');
+      ['receptionistField','dmField','objectionField'].forEach(id=>document.getElementById(id).value='');
+      document.getElementById('callNotes').value='';
+      document.getElementById('objectionDetails').textContent='';
+      document.getElementById('callTimer').textContent='00:00';
+      callState = { leadId:null, startedAt:null, timer:null, elapsed:0 };
+    }
+    window.closeCallOverlay = closeCallOverlay;
+
+    function logOutcome(outcome){
+      const l=state.leads.find(x=>x.id===callState.leadId); if(!l) return;
+      l.lastOutcome=outcome;
+      l.notes=document.getElementById('callNotes').value;
+      l.email=document.getElementById('callEmailField').value;
+      l.followUpDate=document.getElementById('followUpToggle').checked ? document.getElementById('followUpDate').value : '';
+      state.sessions.push({id:crypto.randomUUID(),leadId:l.id,elapsed:callState.elapsed,outcome,ts:new Date().toISOString()});
+      if(outcome==='Booked') state.bookings.push({id:crypto.randomUUID(),bizId:l.bizId,client:l.name,date:new Date().toISOString().slice(0,10),status:'Pending'});
+      notify(`Outcome logged: ${outcome}`);
+      render();
+    }
+
+    function exportBackup(){
+      const backup = { metadata:{app:'Valenero CRM Pro Local',version:state.version,exportedAt:new Date().toISOString()}, state };
+      const blob = new Blob([JSON.stringify(backup,null,2)], {type:'application/json'});
+      const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`valenero-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+      notify('Backup exported');
+    }
+    async function importBackup(evt){
+      const file = evt.target.files?.[0]; if(!file) return;
+      const txt = await file.text();
+      let parsed;
+      try{ parsed = JSON.parse(txt); }catch{ alert('Malformed JSON file.'); return; }
+      const incoming = parsed?.state || parsed;
+      if(!incoming || !Array.isArray(incoming.leads) || !Array.isArray(incoming.businesses)) { alert('Invalid backup structure.'); return; }
+      if(!confirm('Overwrite local CRM state with imported backup?')) return;
+      state = migrateState(incoming); saveSilent(); render(); notify('Backup imported');
+      evt.target.value='';
+    }
+
+    async function importCSV(){
+      const file = document.getElementById('csvInput').files?.[0]; if(!file) return alert('Choose CSV file');
+      const txt = await file.text();
+      const [head,...rows] = txt.split(/\r?\n/).filter(Boolean); const cols=head.split(',').map(s=>s.trim().toLowerCase());
+      rows.forEach(r=>{ const vals=r.split(','); const o=Object.fromEntries(cols.map((c,i)=>[c,vals[i]?.trim()||''])); state.leads.push({id:crypto.randomUUID(),bizId:currentBiz(),name:o.name||'Unnamed',phone:o.phone||'',email:o.email||'',stage:o.stage||'New',persona:o.persona||'General',notes:'',lastOutcome:'',followUpDate:'',source:'CSV'}); });
+      notify('CSV import complete'); render();
+    }
+    function importXLSX(){
+      const file = document.getElementById('xlsxInput').files?.[0]; if(!file) return alert('Choose XLSX file');
+      const fr = new FileReader();
+      fr.onload = e=>{
+        try{
+          const wb = XLSX.read(e.target.result, {type:'array'});
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet);
+          rows.forEach(o=>state.leads.push({id:crypto.randomUUID(),bizId:currentBiz(),name:o.name||o.Name||'Unnamed',phone:o.phone||o.Phone||'',email:o.email||o.Email||'',stage:o.stage||'New',persona:o.persona||'General',notes:'',lastOutcome:'',followUpDate:'',source:'XLSX'}));
+          notify('XLSX import complete'); render();
+        }catch(err){ alert('XLSX parse failed: '+err.message); }
+      };
+      fr.readAsArrayBuffer(file);
+    }
+    async function importObjScripts(){
+      const file = document.getElementById('objScriptInput').files?.[0]; if(!file) return alert('Choose JSON file');
+      const txt = await file.text();
+      try{
+        const data = JSON.parse(txt);
+        if(Array.isArray(data.objections)) state.objections = data.objections;
+        if(Array.isArray(data.scripts)) state.scripts = data.scripts;
+        notify('Objection/Script import complete'); render();
+      }catch{ alert('Malformed JSON'); }
+    }
+
+    init();
+  </script>
+</body>
+</html>
